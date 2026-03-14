@@ -70,7 +70,3 @@ macro-recorder/
 - **Recording** — Creates a Quartz `CGEventTap` in listen-only mode to capture all HID events (mouse and keyboard) with timestamps.
 - **Playback** — Replays events using `CGEventPost` to synthesize mouse and keyboard input at the OS level, respecting the original timing scaled by the speed multiplier.
 - **Trim** — On stop, removes all events within the last N seconds of the recording to cleanly cut off the stop-button interaction.
-
-## License
-
-MIT
