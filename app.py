@@ -34,6 +34,10 @@ class MacroRecorderApp:
         self.btn_record = tk.Button(rec_frame, text="Record", width=12, command=self._toggle_record)
         self.btn_record.pack(side="left", **pad)
 
+        tk.Label(rec_frame, text="Trim tail (s):").pack(side="left", padx=(12, 0))
+        self.trim_var = tk.StringVar(value="0.5")
+        tk.Entry(rec_frame, textvariable=self.trim_var, width=5).pack(side="left", padx=4)
+
         # -- Playback controls --
         play_frame = tk.LabelFrame(self.root, text="Playback", padx=8, pady=6)
         play_frame.pack(fill="x", padx=10, pady=6)
@@ -78,6 +82,12 @@ class MacroRecorderApp:
             self._poll_event_count()
         else:
             self.recorder.stop_recording()
+            try:
+                trim = float(self.trim_var.get())
+                if trim > 0:
+                    self.recorder.trim_tail(trim)
+            except ValueError:
+                pass
             self.btn_record.config(text="Record", bg="SystemButtonFace")
             self._update_status("Stopped")
 

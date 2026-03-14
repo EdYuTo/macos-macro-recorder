@@ -243,6 +243,12 @@ class MacroRecorder:
         with open(filepath, "r") as f:
             self.events = json.load(f)
 
+    def trim_tail(self, seconds):
+        if not self.events:
+            return
+        cutoff = self.events[-1]["time"] - seconds
+        self.events = [e for e in self.events if e["time"] <= cutoff]
+
     @property
     def event_count(self):
         return len(self.events)
