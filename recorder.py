@@ -78,6 +78,7 @@ class MacroRecorder:
         self._tap = None
         self._run_loop = None
         self._listener_thread = None
+        self._pressed_button = None
 
     # ── Recording ──────────────────────────────────────────────
 
@@ -178,6 +179,7 @@ class MacroRecorder:
     def play(self, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
         self.playing = True
+        self._pressed_button = None
 
         def _run():
             count = 0
@@ -194,6 +196,7 @@ class MacroRecorder:
                     self._execute_event(event)
                 count += 1
             self.playing = False
+            self._pressed_button = None
             if on_done:
                 on_done()
 
@@ -208,15 +211,24 @@ class MacroRecorder:
 
         if etype == "move":
             point = Quartz.CGPointMake(event["x"], event["y"])
-            ev = CGEventCreateMouseEvent(None, kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft)
+            if self._pressed_button:
+                ev_type = {
+                    MOUSE_BUTTON_LEFT: kCGEventLeftMouseDragged,
+                    MOUSE_BUTTON_RIGHT: kCGEventRightMouseDragged,
+                }[self._pressed_button]
+                ev = CGEventCreateMouseEvent(None, ev_type, point, _QUARTZ_BUTTON[self._pressed_button])
+            else:
+                ev = CGEventCreateMouseEvent(None, kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft)
             CGEventPost(kCGHIDEventTap, ev)
 
         elif etype == "click":
             point = Quartz.CGPointMake(event["x"], event["y"])
             btn = event["button"]
             if event["pressed"]:
+                self._pressed_button = btn
                 ev_type = _QUARTZ_DOWN_EVENT[btn]
             else:
+                self._pressed_button = None
                 ev_type = _QUARTZ_UP_EVENT[btn]
             ev = CGEventCreateMouseEvent(None, ev_type, point, _QUARTZ_BUTTON[btn])
             CGEventPost(kCGHIDEventTap, ev)
