@@ -176,6 +176,17 @@ class MacroRecorder:
 
     # ── Playback ───────────────────────────────────────────────
 
+    def _play_once(self, events, speed):
+        last_time = 0
+        for event in events:
+            if self._stop_playback:
+                break
+            delay = (event["time"] - last_time) / speed
+            if delay > 0:
+                time.sleep(delay)
+            last_time = event["time"]
+            self._execute_event(event)
+
     def play(self, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
         self.playing = True
@@ -185,15 +196,7 @@ class MacroRecorder:
             count = 0
             infinite = repeat == 0
             while (infinite or count < repeat) and not self._stop_playback:
-                last_time = 0
-                for event in self.events:
-                    if self._stop_playback:
-                        break
-                    delay = (event["time"] - last_time) / speed
-                    if delay > 0:
-                        time.sleep(delay)
-                    last_time = event["time"]
-                    self._execute_event(event)
+                self._play_once(self.events, speed)
                 count += 1
             self.playing = False
             self._pressed_button = None
