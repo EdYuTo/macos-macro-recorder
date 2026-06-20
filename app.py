@@ -157,8 +157,7 @@ class MacroRecorderApp:
 
     def _stop_playback(self):
         self.recorder.stop_playback()
-        self._reset_play_buttons()
-        self._update_status("Playback stopped")
+        self._update_status("Stopping...")
 
     def _save(self):
         if self.recorder.event_count == 0:

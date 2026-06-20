@@ -188,21 +188,32 @@ class MacroRecorder:
             last_time = event["time"]
             self._execute_event(event)
 
+    def _release_pressed_button(self):
+        if self._pressed_button is None:
+            return
+        btn = self._pressed_button
+        point = CGEventGetLocation(Quartz.CGEventCreate(None))
+        ev = CGEventCreateMouseEvent(None, _QUARTZ_UP_EVENT[btn], point, _QUARTZ_BUTTON[btn])
+        CGEventPost(kCGHIDEventTap, ev)
+        self._pressed_button = None
+
     def play(self, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
         self.playing = True
         self._pressed_button = None
 
         def _run():
-            count = 0
-            infinite = repeat == 0
-            while (infinite or count < repeat) and not self._stop_playback:
-                self._play_once(self.events, speed)
-                count += 1
-            self.playing = False
-            self._pressed_button = None
-            if on_done:
-                on_done()
+            try:
+                count = 0
+                infinite = repeat == 0
+                while (infinite or count < repeat) and not self._stop_playback:
+                    self._play_once(self.events, speed)
+                    count += 1
+            finally:
+                self._release_pressed_button()
+                self.playing = False
+                if on_done:
+                    on_done()
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
@@ -213,13 +224,15 @@ class MacroRecorder:
         self._pressed_button = None
 
         def _run():
-            while not self._stop_playback:
-                pick = random.choice(recordings)
-                self._play_once(pick["events"], speed)
-            self.playing = False
-            self._pressed_button = None
-            if on_done:
-                on_done()
+            try:
+                while not self._stop_playback:
+                    pick = random.choice(recordings)
+                    self._play_once(pick["events"], speed)
+            finally:
+                self._release_pressed_button()
+                self.playing = False
+                if on_done:
+                    on_done()
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
