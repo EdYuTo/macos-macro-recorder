@@ -10,6 +10,7 @@ A lightweight macOS desktop application to record and replay mouse movements, cl
 - **Record** mouse movement, clicks, scrolls, and keyboard input
 - **Replay** macros at configurable speed (0.5x, 1x, 2x, etc.)
 - **Loop playback** a set number of times or infinitely
+- **Playlist** — queue multiple saved recordings and play them continuously, picking a random one each time the previous finishes
 - **Trim tail** automatically removes the last N seconds of a recording to discard the "stop" button click
 - **Save & Load** macros as JSON files for reuse
 - **Minimal UI** built with Tkinter — no extra dependencies beyond pyobjc
@@ -52,6 +53,8 @@ python app.py
 | **Repeat** | Number of times to replay (`0` = infinite loop) |
 | **Play** | Start playback |
 | **Stop** | Interrupt playback at any time |
+| **Add / Remove / Clear** | Manage the playlist of saved recordings |
+| **Play Playlist** | Play recordings continuously, randomly picking the next each time one finishes (uses the Speed setting; Stop to halt) |
 | **Save** | Export the current macro to a JSON file |
 | **Load** | Import a previously saved macro |
 
