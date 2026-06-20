@@ -56,3 +56,28 @@ def test_play_loops_repeat_times(monkeypatch):
     assert len(calls) == 3
     assert all(sp == 2.0 for _, sp in calls)
     assert rec.playing is False
+
+
+def test_play_playlist_picks_events_and_stops(monkeypatch):
+    rec = MacroRecorder()
+    recordings = [
+        {"name": "a", "events": [{"time": 0}]},
+        {"name": "b", "events": [{"time": 0}]},
+    ]
+
+    monkeypatch.setattr("recorder.random.choice", lambda seq: seq[0])
+
+    picked = []
+
+    def fake_once(events, speed):
+        picked.append((events, speed))
+        rec._stop_playback = True
+
+    monkeypatch.setattr(rec, "_play_once", fake_once)
+
+    done = threading.Event()
+    rec.play_playlist(recordings, speed=1.5, on_done=done.set)
+
+    assert done.wait(2)
+    assert picked == [([{"time": 0}], 1.5)]
+    assert rec.playing is False

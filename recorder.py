@@ -1,6 +1,7 @@
 import json
 import time
 import threading
+import random
 import Quartz
 from Quartz import (
     CGEventGetLocation,
@@ -198,6 +199,23 @@ class MacroRecorder:
             while (infinite or count < repeat) and not self._stop_playback:
                 self._play_once(self.events, speed)
                 count += 1
+            self.playing = False
+            self._pressed_button = None
+            if on_done:
+                on_done()
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+    def play_playlist(self, recordings, speed=1.0, on_done=None):
+        self._stop_playback = False
+        self.playing = True
+        self._pressed_button = None
+
+        def _run():
+            while not self._stop_playback:
+                pick = random.choice(recordings)
+                self._play_once(pick["events"], speed)
             self.playing = False
             self._pressed_button = None
             if on_done:
