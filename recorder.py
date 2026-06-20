@@ -255,6 +255,11 @@ class MacroRecorder:
         with open(filepath, "r") as f:
             self.events = json.load(f)
 
+    @staticmethod
+    def load_events(filepath):
+        with open(filepath, "r") as f:
+            return json.load(f)
+
     def trim_tail(self, seconds):
         if not self.events:
             return

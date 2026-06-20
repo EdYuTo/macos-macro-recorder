@@ -3,3 +3,4 @@ pyobjc-framework-ApplicationServices==12.1
 pyobjc-framework-Cocoa==12.1
 pyobjc-framework-CoreText==12.1
 pyobjc-framework-Quartz==12.1
+pytest==8.3.4
