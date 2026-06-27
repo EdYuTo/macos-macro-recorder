@@ -198,7 +198,7 @@ def test_interruptible_sleep_aborts_on_key(monkeypatch):
 
     assert rec._stop_playback is True
     assert rec.aborted is True
-    assert len(slept) <= 1  # stopped at the first chunk
+    assert slept == []  # abort checked before sleeping; never slept
 
 
 def test_interruptible_sleep_completes_full_duration(monkeypatch):
