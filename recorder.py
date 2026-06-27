@@ -1,6 +1,7 @@
 import json
 import time
 import threading
+import random
 import Quartz
 from Quartz import (
     CGEventGetLocation,
@@ -36,8 +37,13 @@ from Quartz import (
     CFRunLoopStop,
     kCFRunLoopDefaultMode,
     kCGScrollWheelEventIsContinuous,
+    CGEventSourceKeyState,
+    kCGEventSourceStateHIDSystemState,
 )
 
+
+# Abort hotkey: physical Esc key
+ESC_KEYCODE = 53
 
 # Mouse button constants
 MOUSE_BUTTON_LEFT = "left"
@@ -74,11 +80,14 @@ class MacroRecorder:
         self.recording = False
         self.playing = False
         self._stop_playback = False
+        self.aborted = False
         self._start_time = 0
         self._tap = None
         self._run_loop = None
         self._listener_thread = None
         self._pressed_button = None
+        self.repeat_total = 0
+        self.repeat_done = 0
 
     # ── Recording ──────────────────────────────────────────────
 
@@ -176,29 +185,97 @@ class MacroRecorder:
 
     # ── Playback ───────────────────────────────────────────────
 
-    def play(self, speed=1.0, repeat=1, on_done=None):
-        self._stop_playback = False
-        self.playing = True
+    def _abort_key_pressed(self):
+        return bool(
+            CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, ESC_KEYCODE)
+        )
+
+    def _interruptible_sleep(self, seconds):
+        remaining = seconds
+        while remaining > 0:
+            if self._stop_playback:
+                return
+            if self._abort_key_pressed():
+                self._stop_playback = True
+                self.aborted = True
+                return
+            step = remaining if remaining < 0.05 else 0.05
+            time.sleep(step)
+            remaining -= step
+
+    def _play_once(self, events, speed):
+        last_time = 0
+        for event in events:
+            if self._stop_playback:
+                break
+            if self._abort_key_pressed():
+                self._stop_playback = True
+                self.aborted = True
+                break
+            delay = (event["time"] - last_time) / speed
+            if delay > 0:
+                self._interruptible_sleep(delay)
+                if self._stop_playback:
+                    break
+            last_time = event["time"]
+            self._execute_event(event)
+
+    def _release_pressed_button(self):
+        if self._pressed_button is None:
+            return
+        btn = self._pressed_button
+        point = CGEventGetLocation(Quartz.CGEventCreate(None))
+        ev = CGEventCreateMouseEvent(None, _QUARTZ_UP_EVENT[btn], point, _QUARTZ_BUTTON[btn])
+        CGEventPost(kCGHIDEventTap, ev)
         self._pressed_button = None
 
+    def play(self, speed=1.0, repeat=1, on_done=None):
+        self._stop_playback = False
+        self.aborted = False
+        self.playing = True
+        self._pressed_button = None
+        self.repeat_total = repeat
+        self.repeat_done = 0
+
         def _run():
-            count = 0
-            infinite = repeat == 0
-            while (infinite or count < repeat) and not self._stop_playback:
-                last_time = 0
-                for event in self.events:
-                    if self._stop_playback:
-                        break
-                    delay = (event["time"] - last_time) / speed
-                    if delay > 0:
-                        time.sleep(delay)
-                    last_time = event["time"]
-                    self._execute_event(event)
-                count += 1
-            self.playing = False
-            self._pressed_button = None
-            if on_done:
-                on_done()
+            try:
+                count = 0
+                infinite = repeat == 0
+                while (infinite or count < repeat) and not self._stop_playback:
+                    self._play_once(self.events, speed)
+                    count += 1
+                    self.repeat_done = count
+            finally:
+                self._release_pressed_button()
+                self.playing = False
+                if on_done:
+                    on_done()
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+    def play_playlist(self, recordings, speed=1.0, repeat=1, on_done=None):
+        self._stop_playback = False
+        self.aborted = False
+        self.playing = True
+        self._pressed_button = None
+        self.repeat_total = repeat
+        self.repeat_done = 0
+
+        def _run():
+            try:
+                count = 0
+                infinite = repeat == 0
+                while (infinite or count < repeat) and not self._stop_playback:
+                    pick = random.choice(recordings)
+                    self._play_once(pick["events"], speed)
+                    count += 1
+                    self.repeat_done = count
+            finally:
+                self._release_pressed_button()
+                self.playing = False
+                if on_done:
+                    on_done()
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
@@ -254,6 +331,11 @@ class MacroRecorder:
     def load(self, filepath):
         with open(filepath, "r") as f:
             self.events = json.load(f)
+
+    @staticmethod
+    def load_events(filepath):
+        with open(filepath, "r") as f:
+            return json.load(f)
 
     def trim_tail(self, seconds):
         if not self.events:

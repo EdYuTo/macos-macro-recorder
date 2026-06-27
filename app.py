@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from recorder import MacroRecorder
@@ -26,6 +27,9 @@ class MacroRecorderApp:
 
         self.event_count_var = tk.StringVar(value="Events: 0")
         tk.Label(self.root, textvariable=self.event_count_var).pack()
+
+        self.cycle_var = tk.StringVar(value="")
+        tk.Label(self.root, textvariable=self.cycle_var).pack()
 
         # -- Record controls --
         rec_frame = tk.LabelFrame(self.root, text="Record", padx=8, pady=6)
@@ -70,6 +74,28 @@ class MacroRecorderApp:
         tk.Button(file_frame, text="Save", width=12, command=self._save).pack(side="left", **pad)
         tk.Button(file_frame, text="Load", width=12, command=self._load).pack(side="left", **pad)
 
+        # -- Playlist controls --
+        pl_frame = tk.LabelFrame(self.root, text="Playlist", padx=8, pady=6)
+        pl_frame.pack(fill="x", padx=10, pady=6)
+
+        self.playlist = []  # list of {"name", "events"}
+
+        self.playlist_box = tk.Listbox(pl_frame, height=5)
+        self.playlist_box.pack(fill="x", padx=4, pady=4)
+
+        pl_btns = tk.Frame(pl_frame)
+        pl_btns.pack(fill="x", pady=2)
+
+        self.btn_pl_add = tk.Button(pl_btns, text="Add", width=8, command=self._playlist_add)
+        self.btn_pl_add.pack(side="left", padx=2)
+        self.btn_pl_remove = tk.Button(pl_btns, text="Remove", width=8, command=self._playlist_remove)
+        self.btn_pl_remove.pack(side="left", padx=2)
+        self.btn_pl_clear = tk.Button(pl_btns, text="Clear", width=8, command=self._playlist_clear)
+        self.btn_pl_clear.pack(side="left", padx=2)
+
+        self.btn_pl_play = tk.Button(pl_btns, text="Play Playlist", width=14, command=self._play_playlist)
+        self.btn_pl_play.pack(side="left", padx=2)
+
     def _update_status(self, text):
         self.status_var.set(text)
         self.event_count_var.set(f"Events: {self.recorder.event_count}")
@@ -96,6 +122,18 @@ class MacroRecorderApp:
             self.event_count_var.set(f"Events: {self.recorder.event_count}")
             self.root.after(500, self._poll_event_count)
 
+    def _poll_cycles(self):
+        if self.recorder.playing:
+            total = self.recorder.repeat_total
+            done = self.recorder.repeat_done
+            if total == 0:
+                self.cycle_var.set(f"Cycle {done + 1} (infinite)")
+            else:
+                self.cycle_var.set(f"Cycles left: {total - done}")
+            self.root.after(200, self._poll_cycles)
+        else:
+            self.cycle_var.set("")
+
     def _play(self):
         if self.recorder.event_count == 0:
             messagebox.showwarning("No events", "Nothing to play. Record or load a macro first.")
@@ -115,22 +153,32 @@ class MacroRecorderApp:
 
         self.btn_play.config(state="disabled")
         self.btn_stop.config(state="normal")
-        self._update_status(f"Playing ({'infinite' if repeat == 0 else repeat}x @ {speed}x)...")
+        self.btn_pl_play.config(state="disabled")
+        self._update_status(
+            f"Playing ({'infinite' if repeat == 0 else repeat}x @ {speed}x) — Esc to abort"
+        )
 
         self.recorder.play(speed=speed, repeat=repeat, on_done=self._on_playback_done)
+        self._poll_cycles()
 
     def _on_playback_done(self):
         self.root.after(0, self._reset_play_buttons)
 
     def _reset_play_buttons(self):
         self.btn_play.config(state="normal")
+        self.btn_pl_play.config(state="normal")
+        self.btn_pl_add.config(state="normal")
+        self.btn_pl_remove.config(state="normal")
+        self.btn_pl_clear.config(state="normal")
         self.btn_stop.config(state="disabled")
-        self._update_status("Playback finished")
+        if self.recorder.aborted:
+            self._update_status("Playback aborted")
+        else:
+            self._update_status("Playback finished")
 
     def _stop_playback(self):
         self.recorder.stop_playback()
-        self._reset_play_buttons()
-        self._update_status("Playback stopped")
+        self._update_status("Stopping...")
 
     def _save(self):
         if self.recorder.event_count == 0:
@@ -154,6 +202,68 @@ class MacroRecorderApp:
                 self._update_status(f"Loaded ({self.recorder.event_count} events)")
             except Exception as e:
                 messagebox.showerror("Load error", str(e))
+
+    def _playlist_add(self):
+        paths = filedialog.askopenfilenames(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+        )
+        if not paths:
+            return
+        errors = []
+        for path in paths:
+            try:
+                events = MacroRecorder.load_events(path)
+            except Exception as e:
+                errors.append(f"{os.path.basename(path)}: {e}")
+                continue
+            name = os.path.basename(path)
+            self.playlist.append({"name": name, "events": events})
+            self.playlist_box.insert("end", name)
+        if errors:
+            messagebox.showerror("Load error", "\n".join(errors))
+
+    def _playlist_remove(self):
+        sel = self.playlist_box.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        self.playlist_box.delete(idx)
+        del self.playlist[idx]
+
+    def _playlist_clear(self):
+        self.playlist_box.delete(0, "end")
+        self.playlist.clear()
+
+    def _play_playlist(self):
+        if not self.playlist:
+            messagebox.showwarning("Empty playlist", "Add recordings to the playlist first.")
+            return
+        try:
+            speed = float(self.speed_var.get())
+            repeat = int(self.repeat_var.get())
+        except ValueError:
+            messagebox.showerror("Invalid input", "Speed must be a number and repeat must be an integer.")
+            return
+        if speed <= 0:
+            messagebox.showerror("Invalid input", "Speed must be greater than 0.")
+            return
+        if repeat < 0:
+            messagebox.showerror("Invalid input", "Repeat must be 0 (infinite) or a positive integer.")
+            return
+
+        self.btn_play.config(state="disabled")
+        self.btn_pl_play.config(state="disabled")
+        self.btn_pl_add.config(state="disabled")
+        self.btn_pl_remove.config(state="disabled")
+        self.btn_pl_clear.config(state="disabled")
+        self.btn_stop.config(state="normal")
+        reps = "infinite" if repeat == 0 else f"{repeat}x"
+        self._update_status(
+            f"Playing playlist ({len(self.playlist)} items, {reps} @ {speed}x) — Esc to abort"
+        )
+
+        self.recorder.play_playlist(self.playlist, speed=speed, repeat=repeat, on_done=self._on_playback_done)
+        self._poll_cycles()
 
 
 def main():
