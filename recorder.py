@@ -231,6 +231,7 @@ class MacroRecorder:
 
     def play(self, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
+        self.aborted = False
         self.playing = True
         self._pressed_button = None
         self.repeat_total = repeat
@@ -255,6 +256,7 @@ class MacroRecorder:
 
     def play_playlist(self, recordings, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
+        self.aborted = False
         self.playing = True
         self._pressed_button = None
         self.repeat_total = repeat

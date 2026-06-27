@@ -227,3 +227,30 @@ def test_play_once_aborts_on_key(monkeypatch):
 
     assert len(executed) == 1
     assert rec.aborted is True
+
+
+def test_play_resets_aborted_flag(monkeypatch):
+    rec = MacroRecorder()
+    rec.aborted = True  # stale from a previous run
+    monkeypatch.setattr(rec, "_play_once", lambda ev, sp: None)
+
+    rec.events = [{"time": 0}]
+    done = threading.Event()
+    rec.play(speed=1.0, repeat=1, on_done=done.set)
+
+    assert done.wait(2)
+    assert rec.aborted is False
+
+
+def test_play_playlist_resets_aborted_flag(monkeypatch):
+    rec = MacroRecorder()
+    rec.aborted = True
+    monkeypatch.setattr("recorder.random.choice", lambda seq: seq[0])
+    monkeypatch.setattr(rec, "_play_once", lambda ev, sp: None)
+
+    done = threading.Event()
+    rec.play_playlist([{"name": "a", "events": [{"time": 0}]}],
+                      speed=1.0, repeat=1, on_done=done.set)
+
+    assert done.wait(2)
+    assert rec.aborted is False
