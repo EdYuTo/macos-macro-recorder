@@ -154,7 +154,9 @@ class MacroRecorderApp:
         self.btn_play.config(state="disabled")
         self.btn_stop.config(state="normal")
         self.btn_pl_play.config(state="disabled")
-        self._update_status(f"Playing ({'infinite' if repeat == 0 else repeat}x @ {speed}x)...")
+        self._update_status(
+            f"Playing ({'infinite' if repeat == 0 else repeat}x @ {speed}x) — Esc to abort"
+        )
 
         self.recorder.play(speed=speed, repeat=repeat, on_done=self._on_playback_done)
         self._poll_cycles()
@@ -169,7 +171,10 @@ class MacroRecorderApp:
         self.btn_pl_remove.config(state="normal")
         self.btn_pl_clear.config(state="normal")
         self.btn_stop.config(state="disabled")
-        self._update_status("Playback finished")
+        if self.recorder.aborted:
+            self._update_status("Playback aborted")
+        else:
+            self._update_status("Playback finished")
 
     def _stop_playback(self):
         self.recorder.stop_playback()
@@ -253,7 +258,9 @@ class MacroRecorderApp:
         self.btn_pl_clear.config(state="disabled")
         self.btn_stop.config(state="normal")
         reps = "infinite" if repeat == 0 else f"{repeat}x"
-        self._update_status(f"Playing playlist ({len(self.playlist)} items, {reps} @ {speed}x)...")
+        self._update_status(
+            f"Playing playlist ({len(self.playlist)} items, {reps} @ {speed}x) — Esc to abort"
+        )
 
         self.recorder.play_playlist(self.playlist, speed=speed, repeat=repeat, on_done=self._on_playback_done)
         self._poll_cycles()
