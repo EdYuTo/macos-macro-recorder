@@ -37,8 +37,13 @@ from Quartz import (
     CFRunLoopStop,
     kCFRunLoopDefaultMode,
     kCGScrollWheelEventIsContinuous,
+    CGEventSourceKeyState,
+    kCGEventSourceStateHIDSystemState,
 )
 
+
+# Abort hotkey: physical Esc key
+ESC_KEYCODE = 53
 
 # Mouse button constants
 MOUSE_BUTTON_LEFT = "left"
@@ -75,6 +80,7 @@ class MacroRecorder:
         self.recording = False
         self.playing = False
         self._stop_playback = False
+        self.aborted = False
         self._start_time = 0
         self._tap = None
         self._run_loop = None
@@ -179,14 +185,38 @@ class MacroRecorder:
 
     # ── Playback ───────────────────────────────────────────────
 
+    def _abort_key_pressed(self):
+        return bool(
+            CGEventSourceKeyState(kCGEventSourceStateHIDSystemState, ESC_KEYCODE)
+        )
+
+    def _interruptible_sleep(self, seconds):
+        remaining = seconds
+        while remaining > 0:
+            if self._stop_playback:
+                return
+            if self._abort_key_pressed():
+                self._stop_playback = True
+                self.aborted = True
+                return
+            step = remaining if remaining < 0.05 else 0.05
+            time.sleep(step)
+            remaining -= step
+
     def _play_once(self, events, speed):
         last_time = 0
         for event in events:
             if self._stop_playback:
                 break
+            if self._abort_key_pressed():
+                self._stop_playback = True
+                self.aborted = True
+                break
             delay = (event["time"] - last_time) / speed
             if delay > 0:
-                time.sleep(delay)
+                self._interruptible_sleep(delay)
+                if self._stop_playback:
+                    break
             last_time = event["time"]
             self._execute_event(event)
 

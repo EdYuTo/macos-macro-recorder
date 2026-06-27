@@ -156,3 +156,74 @@ def test_play_calls_on_done_and_clears_playing_on_exception(monkeypatch):
 
     assert done.wait(2), "on_done was never called after exception"
     assert rec.playing is False
+
+
+# ── Global abort hotkey ───────────────────────────────────────────────────────
+
+def test_abort_key_pressed_reads_hid_state(monkeypatch):
+    rec = MacroRecorder()
+    seen = {}
+
+    def fake_state(source, keycode):
+        seen["source"] = source
+        seen["keycode"] = keycode
+        return True
+
+    monkeypatch.setattr(recorder_mod, "CGEventSourceKeyState", fake_state)
+
+    assert rec._abort_key_pressed() is True
+    assert seen["source"] == recorder_mod.kCGEventSourceStateHIDSystemState
+    assert seen["keycode"] == recorder_mod.ESC_KEYCODE
+
+
+def test_interruptible_sleep_returns_early_on_stop_flag(monkeypatch):
+    rec = MacroRecorder()
+    slept = []
+    monkeypatch.setattr(recorder_mod.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(rec, "_abort_key_pressed", lambda: False)
+
+    rec._stop_playback = True
+    rec._interruptible_sleep(1.0)
+
+    assert slept == []  # returned before sleeping
+
+
+def test_interruptible_sleep_aborts_on_key(monkeypatch):
+    rec = MacroRecorder()
+    slept = []
+    monkeypatch.setattr(recorder_mod.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(rec, "_abort_key_pressed", lambda: True)
+
+    rec._interruptible_sleep(1.0)
+
+    assert rec._stop_playback is True
+    assert rec.aborted is True
+    assert len(slept) <= 1  # stopped at the first chunk
+
+
+def test_interruptible_sleep_completes_full_duration(monkeypatch):
+    rec = MacroRecorder()
+    slept = []
+    monkeypatch.setattr(recorder_mod.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(rec, "_abort_key_pressed", lambda: False)
+
+    rec._interruptible_sleep(0.12)
+
+    assert rec._stop_playback is False
+    assert abs(sum(slept) - 0.12) < 1e-9
+    assert all(s <= 0.05 + 1e-9 for s in slept)
+
+
+def test_play_once_aborts_on_key(monkeypatch):
+    rec = MacroRecorder()
+    executed = []
+    monkeypatch.setattr(rec, "_execute_event", lambda e: executed.append(e))
+    # abort fires after the first event is executed
+    states = iter([False, True, True, True])
+    monkeypatch.setattr(rec, "_abort_key_pressed", lambda: next(states))
+
+    events = [{"time": 0}, {"time": 0}, {"time": 0}]
+    rec._play_once(events, speed=1.0)
+
+    assert len(executed) == 1
+    assert rec.aborted is True
