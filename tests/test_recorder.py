@@ -85,6 +85,23 @@ def test_play_playlist_picks_events_and_stops(monkeypatch):
     assert rec.playing is False
 
 
+def test_play_playlist_loops_repeat_times(monkeypatch):
+    rec = MacroRecorder()
+    recordings = [{"name": "a", "events": [{"time": 0}]}]
+
+    monkeypatch.setattr("recorder.random.choice", lambda seq: seq[0])
+
+    calls = []
+    monkeypatch.setattr(rec, "_play_once", lambda ev, sp: calls.append((ev, sp)))
+
+    done = threading.Event()
+    rec.play_playlist(recordings, speed=1.0, repeat=3, on_done=done.set)
+
+    assert done.wait(2)
+    assert len(calls) == 3
+    assert rec.playing is False
+
+
 # ── Fix 2: _release_pressed_button ────────────────────────────────────────────
 
 def test_release_pressed_button_posts_up_event_and_clears(monkeypatch):

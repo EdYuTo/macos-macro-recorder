@@ -80,6 +80,8 @@ class MacroRecorder:
         self._run_loop = None
         self._listener_thread = None
         self._pressed_button = None
+        self.repeat_total = 0
+        self.repeat_done = 0
 
     # ── Recording ──────────────────────────────────────────────
 
@@ -201,6 +203,8 @@ class MacroRecorder:
         self._stop_playback = False
         self.playing = True
         self._pressed_button = None
+        self.repeat_total = repeat
+        self.repeat_done = 0
 
         def _run():
             try:
@@ -209,6 +213,7 @@ class MacroRecorder:
                 while (infinite or count < repeat) and not self._stop_playback:
                     self._play_once(self.events, speed)
                     count += 1
+                    self.repeat_done = count
             finally:
                 self._release_pressed_button()
                 self.playing = False
@@ -218,16 +223,22 @@ class MacroRecorder:
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
 
-    def play_playlist(self, recordings, speed=1.0, on_done=None):
+    def play_playlist(self, recordings, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
         self.playing = True
         self._pressed_button = None
+        self.repeat_total = repeat
+        self.repeat_done = 0
 
         def _run():
             try:
-                while not self._stop_playback:
+                count = 0
+                infinite = repeat == 0
+                while (infinite or count < repeat) and not self._stop_playback:
                     pick = random.choice(recordings)
                     self._play_once(pick["events"], speed)
+                    count += 1
+                    self.repeat_done = count
             finally:
                 self._release_pressed_button()
                 self.playing = False

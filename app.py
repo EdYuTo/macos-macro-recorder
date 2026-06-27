@@ -28,6 +28,9 @@ class MacroRecorderApp:
         self.event_count_var = tk.StringVar(value="Events: 0")
         tk.Label(self.root, textvariable=self.event_count_var).pack()
 
+        self.cycle_var = tk.StringVar(value="")
+        tk.Label(self.root, textvariable=self.cycle_var).pack()
+
         # -- Record controls --
         rec_frame = tk.LabelFrame(self.root, text="Record", padx=8, pady=6)
         rec_frame.pack(fill="x", padx=10, pady=6)
@@ -119,6 +122,18 @@ class MacroRecorderApp:
             self.event_count_var.set(f"Events: {self.recorder.event_count}")
             self.root.after(500, self._poll_event_count)
 
+    def _poll_cycles(self):
+        if self.recorder.playing:
+            total = self.recorder.repeat_total
+            done = self.recorder.repeat_done
+            if total == 0:
+                self.cycle_var.set(f"Cycle {done + 1} (infinite)")
+            else:
+                self.cycle_var.set(f"Cycles left: {total - done}")
+            self.root.after(200, self._poll_cycles)
+        else:
+            self.cycle_var.set("")
+
     def _play(self):
         if self.recorder.event_count == 0:
             messagebox.showwarning("No events", "Nothing to play. Record or load a macro first.")
@@ -142,6 +157,7 @@ class MacroRecorderApp:
         self._update_status(f"Playing ({'infinite' if repeat == 0 else repeat}x @ {speed}x)...")
 
         self.recorder.play(speed=speed, repeat=repeat, on_done=self._on_playback_done)
+        self._poll_cycles()
 
     def _on_playback_done(self):
         self.root.after(0, self._reset_play_buttons)
@@ -183,19 +199,23 @@ class MacroRecorderApp:
                 messagebox.showerror("Load error", str(e))
 
     def _playlist_add(self):
-        path = filedialog.askopenfilename(
+        paths = filedialog.askopenfilenames(
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
         )
-        if not path:
+        if not paths:
             return
-        try:
-            events = MacroRecorder.load_events(path)
-        except Exception as e:
-            messagebox.showerror("Load error", str(e))
-            return
-        name = os.path.basename(path)
-        self.playlist.append({"name": name, "events": events})
-        self.playlist_box.insert("end", name)
+        errors = []
+        for path in paths:
+            try:
+                events = MacroRecorder.load_events(path)
+            except Exception as e:
+                errors.append(f"{os.path.basename(path)}: {e}")
+                continue
+            name = os.path.basename(path)
+            self.playlist.append({"name": name, "events": events})
+            self.playlist_box.insert("end", name)
+        if errors:
+            messagebox.showerror("Load error", "\n".join(errors))
 
     def _playlist_remove(self):
         sel = self.playlist_box.curselection()
@@ -215,11 +235,15 @@ class MacroRecorderApp:
             return
         try:
             speed = float(self.speed_var.get())
+            repeat = int(self.repeat_var.get())
         except ValueError:
-            messagebox.showerror("Invalid input", "Speed must be a number.")
+            messagebox.showerror("Invalid input", "Speed must be a number and repeat must be an integer.")
             return
         if speed <= 0:
             messagebox.showerror("Invalid input", "Speed must be greater than 0.")
+            return
+        if repeat < 0:
+            messagebox.showerror("Invalid input", "Repeat must be 0 (infinite) or a positive integer.")
             return
 
         self.btn_play.config(state="disabled")
@@ -228,9 +252,11 @@ class MacroRecorderApp:
         self.btn_pl_remove.config(state="disabled")
         self.btn_pl_clear.config(state="disabled")
         self.btn_stop.config(state="normal")
-        self._update_status(f"Playing playlist ({len(self.playlist)} items @ {speed}x)...")
+        reps = "infinite" if repeat == 0 else f"{repeat}x"
+        self._update_status(f"Playing playlist ({len(self.playlist)} items, {reps} @ {speed}x)...")
 
-        self.recorder.play_playlist(self.playlist, speed=speed, on_done=self._on_playback_done)
+        self.recorder.play_playlist(self.playlist, speed=speed, repeat=repeat, on_done=self._on_playback_done)
+        self._poll_cycles()
 
 
 def main():
