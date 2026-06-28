@@ -254,3 +254,51 @@ def test_play_playlist_resets_aborted_flag(monkeypatch):
 
     assert done.wait(2)
     assert rec.aborted is False
+
+
+def test_play_playlist_sets_current_name(monkeypatch):
+    rec = MacroRecorder()
+    recordings = [
+        {"name": "alpha.json", "events": [{"time": 0}]},
+        {"name": "beta.json", "events": [{"time": 0}]},
+    ]
+    monkeypatch.setattr("recorder.random.choice", lambda seq: seq[1])
+
+    seen = []
+
+    def fake_once(events, speed):
+        seen.append(rec.current_name)
+
+    monkeypatch.setattr(rec, "_play_once", fake_once)
+
+    done = threading.Event()
+    rec.play_playlist(recordings, speed=1.0, repeat=1, on_done=done.set)
+
+    assert done.wait(2)
+    assert seen == ["beta.json"]
+
+
+def test_play_playlist_clears_current_name_on_finish(monkeypatch):
+    rec = MacroRecorder()
+    recordings = [{"name": "alpha.json", "events": [{"time": 0}]}]
+    monkeypatch.setattr("recorder.random.choice", lambda seq: seq[0])
+    monkeypatch.setattr(rec, "_play_once", lambda ev, sp: None)
+
+    done = threading.Event()
+    rec.play_playlist(recordings, speed=1.0, repeat=1, on_done=done.set)
+
+    assert done.wait(2)
+    assert rec.current_name is None
+
+
+def test_play_clears_current_name(monkeypatch):
+    rec = MacroRecorder()
+    rec.current_name = "stale.json"  # leftover from a previous playlist run
+    monkeypatch.setattr(rec, "_play_once", lambda ev, sp: None)
+
+    rec.events = [{"time": 0}]
+    done = threading.Event()
+    rec.play(speed=1.0, repeat=1, on_done=done.set)
+
+    assert done.wait(2)
+    assert rec.current_name is None

@@ -31,6 +31,9 @@ class MacroRecorderApp:
         self.cycle_var = tk.StringVar(value="")
         tk.Label(self.root, textvariable=self.cycle_var).pack()
 
+        self.now_playing_var = tk.StringVar(value="")
+        tk.Label(self.root, textvariable=self.now_playing_var).pack()
+
         # -- Record controls --
         rec_frame = tk.LabelFrame(self.root, text="Record", padx=8, pady=6)
         rec_frame.pack(fill="x", padx=10, pady=6)
@@ -130,9 +133,14 @@ class MacroRecorderApp:
                 self.cycle_var.set(f"Cycle {done + 1} (infinite)")
             else:
                 self.cycle_var.set(f"Cycles left: {total - done}")
+            if self.recorder.current_name:
+                self.now_playing_var.set(f"Now playing: {self.recorder.current_name}")
+            else:
+                self.now_playing_var.set("")
             self.root.after(200, self._poll_cycles)
         else:
             self.cycle_var.set("")
+            self.now_playing_var.set("")
 
     def _play(self):
         if self.recorder.event_count == 0:
