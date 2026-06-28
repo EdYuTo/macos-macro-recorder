@@ -81,6 +81,7 @@ class MacroRecorder:
         self.playing = False
         self._stop_playback = False
         self.aborted = False
+        self.current_name = None
         self._start_time = 0
         self._tap = None
         self._run_loop = None
@@ -232,6 +233,7 @@ class MacroRecorder:
     def play(self, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
         self.aborted = False
+        self.current_name = None
         self.playing = True
         self._pressed_button = None
         self.repeat_total = repeat
@@ -257,6 +259,7 @@ class MacroRecorder:
     def play_playlist(self, recordings, speed=1.0, repeat=1, on_done=None):
         self._stop_playback = False
         self.aborted = False
+        self.current_name = None
         self.playing = True
         self._pressed_button = None
         self.repeat_total = repeat
@@ -268,6 +271,7 @@ class MacroRecorder:
                 infinite = repeat == 0
                 while (infinite or count < repeat) and not self._stop_playback:
                     pick = random.choice(recordings)
+                    self.current_name = pick["name"]
                     self._play_once(pick["events"], speed)
                     count += 1
                     self.repeat_done = count
