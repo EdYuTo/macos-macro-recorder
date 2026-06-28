@@ -277,6 +277,7 @@ class MacroRecorder:
                     self.repeat_done = count
             finally:
                 self._release_pressed_button()
+                self.current_name = None
                 self.playing = False
                 if on_done:
                     on_done()
